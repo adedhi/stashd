@@ -6,9 +6,10 @@ use std::time::Duration;
 #[test]
 fn handles_concurrent_clients() {
     let store = stashd::new_store();
+    let log = stashd::open_log("stashd.test_log");
 
     thread::spawn(move || {
-        stashd::run_server("127.0.0.1:9090", store);
+        stashd::run_server("127.0.0.1:9090", store, log);
     });
 
     thread::sleep(Duration::from_millis(100));
