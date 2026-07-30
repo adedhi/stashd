@@ -1,3 +1,4 @@
 target
 stashd.log
-stashd.test_log
+stashd.concurrency_test_log
+stashd.expiry_test_log

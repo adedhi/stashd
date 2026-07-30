@@ -40,7 +40,7 @@ pub fn replay_log(path: &str, store: &Store) {
             ["DEL", key] => {
                 map.remove(*key);
             }
-            ["EXPIREAT", key, seconds] => {
+            ["EXPIRE", key, seconds] => {
                 if let Some(entry) = map.get_mut(*key) {
                     if let Ok(secs) = seconds.parse::<u64>() {
                         entry.expires_at = Some(UNIX_EPOCH + Duration::from_secs(secs));
