@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, Read};
+use std::io::{self, BufRead};
 
 pub fn simple_string(s: &str) -> String {
     format!("+{}\r\n", s)
@@ -47,7 +47,7 @@ pub fn read_command<R: BufRead>(reader: &mut R) -> io::Result<Option<Vec<String>
         let mut buf = vec![0u8; len + 2];
         reader.read_exact(&mut buf)?;
 
-        let value = string::from_utf8_lossy(&buf[..len]).to_string();
+        let value = String::from_utf8_lossy(&buf[..len]).to_string();
         parts.push(value);
     }
 
