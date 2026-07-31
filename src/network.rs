@@ -1,35 +1,39 @@
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::persistence::log_command;
+use crate::resp;
 use crate::store::{Entry, Store};
 
-pub fn handle_connection(mut stream: TcpStream, store: Store, log: Arc<Mutex<File>>) {
-    let mut buffer = [0; 512];
+pub fn handle_connection(stream: TcpStream, store: Store, log: Arc<Mutex<File>>) {
+    let mut writer = stream.try_clone().unwrap();
+    let mut reader = BufReader::new(stream);
 
     loop {
-        let bytes_read = match stream.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(n) => n,
+        let command = match resp::read_command(&mut reader) {
+            Ok(Some(parts)) if !parts.is_empty() => parts,
+            Ok(Some(_)) => continue,
+            Ok(None) => break,
             Err(_) => break,
         };
 
-        let request = String::from_utf8_lossy(&buffer[..bytes_read]);
-        let request = request.trim();
-        let parts: Vec<&str> = request.split_whitespace().collect();
+        let cmd_name = command[0].to_uppercase();
+        let args: Vec<&str> = command.iter().map(|s| s.as_str()).collect();
 
-        let response = match parts.as_slice() {
-            ["SET", key, value] => {
+        let plain_command = command.join(" ");
+
+        let response = match(cmd_name.as_str(), args.as_slice()) {
+            ("SET", [_, key, value]) => {
                 let mut map = store.lock().unwrap();
                 map.insert(key.to_string(), Entry { value: value.to_string(), expires_at: None });
-                log_command(&log, request);
-                "OK\n".to_string()
+                log_command(&log, &plain_command);
+                resp::simple_string("OK")
             }
-            ["GET", key] => {
+            ("GET", [_, key]) => {
                 let mut map = store.lock().unwrap();
                 let mut expired = false;
 
@@ -54,17 +58,17 @@ pub fn handle_connection(mut stream: TcpStream, store: Store, log: Arc<Mutex<Fil
                 }
 
                 match result {
-                    Some(value) => format!("{}\n", value),
-                    None => "NOT FOUND\n".to_string(),
+                    Some(value) => resp::bulk_string(&value),
+                    None => resp::null(),
                 }
             }
-            ["DEL", key] => {
+            ("DEL", [_, key]) => {
                 let mut map = store.lock().unwrap();
                 map.remove(*key);
-                log_command(&log, request);
-                "OK\n".to_string()
+                log_command(&log, &plain_command);
+                resp::simple_string("OK")
             }
-            ["EXPIRE", key, seconds] => {
+            ("EXPIRE", [_, key, seconds]) => {
                 let mut map = store.lock().unwrap();
                 if let Some(entry) = map.get_mut(*key) {
                     let secs: u64 = seconds.parse().unwrap_or(0);
@@ -73,16 +77,16 @@ pub fn handle_connection(mut stream: TcpStream, store: Store, log: Arc<Mutex<Fil
 
                     let unix_secs = expiry.duration_since(UNIX_EPOCH).unwrap().as_secs();
                     log_command(&log, &format!("EXPIRE {} {}", key, unix_secs));
-                    "OK\n".to_string()
+                    resp::simple_string("OK")
                 } else {
-                    "NOT FOUND\n".to_string()
+                    resp::error("ERROR no such key")
                 }
             }
-            _ => "ERROR: unknown command\n".to_string(),
+            _ => resp::error("ERROR unknown command"),
         };
 
-        stream.write_all(response.as_bytes()).unwrap();
-    }
+        writer.write_all(response.as_bytes()).unwrap();
+    };
 }
 
 pub fn run_server(address: &str, store: Store, log: Arc<Mutex<File>>) {

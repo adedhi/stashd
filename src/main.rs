@@ -3,5 +3,5 @@ fn main() {
     let log = stashd::open_log("stashd.log");
     
     stashd::replay_log("stashd.log", &store);
-    stashd::run_server("127.0.0.1:7878", store, log);
+    stashd::run_server("0.0.0.0:7878", store, log);
 }
