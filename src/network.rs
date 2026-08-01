@@ -94,7 +94,13 @@ pub fn run_server(address: &str, store: Store, log: Arc<Mutex<File>>) {
     println!("Listening on {}", address);
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Failed to accept connection: {}", e);
+                continue;
+            }
+        };
         let store = store.clone();
         let log = log.clone();
 
