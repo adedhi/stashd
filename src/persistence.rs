@@ -51,3 +51,32 @@ pub fn replay_log(path: &str, store: &Store) {
         }
     }
 }
+
+pub fn compact_log(path: &str, log: &Mutex<File>, store: &Store) {
+    let map = store.lock().unwrap();
+    let mut file = log.lock().unwrap();
+
+    let temp_path = format!("{}.temp", path);
+    let mut temp_file = File::create(&temp_path).unwrap();
+
+    for (key, entry) in map.iter() {
+        writeln!(temp_file, "SET {} {}", key, entry.value).unwrap();
+
+        if let Some(expiry) = entry.expires_at {
+            if let Ok(unix_secs) = expiry.duration_since(UNIX_EPOCH) {
+                writeln!(temp_file, "EXPIRE {} {}", key, unix_secs.as_secs()).unwrap();
+            }
+        }
+    }
+
+    temp_file.flush().unwrap();
+    drop(temp_file);
+
+    std::fs::rename(&temp_path, path).unwrap();
+
+    *file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+}
