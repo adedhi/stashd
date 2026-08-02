@@ -16,5 +16,16 @@ fn main() {
         });
     }
 
+    {
+        let store = store.clone();
+        let log = log.clone();
+        ctrlc::set_handler(move || {
+            println!("Shutting down, compacting log...");
+            stashd::compact_log("stashd.log", &log, &store);
+            println!("Compacted log on shutdown");
+            std::process::exit(0);
+        }).expect("Error setting Ctrl-C handler");
+    }
+
     stashd::run_server("0.0.0.0:7878", store, log);
 }
