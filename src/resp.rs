@@ -16,6 +16,10 @@ pub fn null() -> String {
     "$-1\r\n".to_string()
 }
 
+pub fn integer(n: i64) -> String {
+    format!(":{}\r\n", n)
+}
+
 pub fn read_command<R: BufRead>(reader: &mut R) -> io::Result<Option<Vec<String>>> {
     let mut header = String::new();
     let bytes_read = reader.read_line(&mut header)?;

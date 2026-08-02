@@ -82,6 +82,33 @@ pub fn handle_connection(stream: TcpStream, store: Store, log: Arc<Mutex<File>>)
                     resp::error("ERROR no such key")
                 }
             }
+            ("TTL", [_, key]) => {
+                let mut map = store.lock().unwrap();
+                match map.get(*key) {
+                    Some(entry) => match entry.expires_at {
+                        Some(expiry) => match expiry.duration_since(SystemTime::now()) {
+                            Ok(remaining) => resp::integer(remaining.as_secs() as i64),
+                            Err(_) => {
+                                map.remove(*key);
+                                resp::integer(-2)
+                            }
+                        },
+                        None => resp::integer(-1),
+                    },
+                    None => resp::integer(-2),
+                }
+            }
+            ("PERSIST", [_, key]) => {
+                let mut map = store.lock().unwrap();
+                match map.get_mut(*key) {
+                    Some(entry) if entry.expires_at.is_some() => {
+                        entry.expires_at = None;
+                        log_command(&log, &format!("PERSIST {}", key));
+                        resp::integer(1)
+                    }
+                    _ => resp::integer(0),
+                }
+            }
             _ => resp::error("ERROR unknown command"),
         };
 
