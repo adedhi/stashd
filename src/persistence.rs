@@ -1,7 +1,7 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::store::{Entry, Store};
 
@@ -47,14 +47,23 @@ pub fn replay_log(path: &str, store: &Store) {
                     }
                 }
             }
+            ["PERSIST", key] => {
+                if let Some(entry) = map.get_mut(*key) {
+                    entry.expires_at = None;
+                }
+            }
             _ => {}
         }
     }
 }
 
 pub fn compact_log(path: &str, log: &Mutex<File>, store: &Store) {
-    let map = store.lock().unwrap();
+    let mut map = store.lock().unwrap();
     let mut file = log.lock().unwrap();
+
+    map.retain(|_, entry| {
+        entry.expires_at.map_or(true, |expiry| expiry > SystemTime::now())
+    });
 
     let temp_path = format!("{}.temp", path);
     let mut temp_file = File::create(&temp_path).unwrap();
