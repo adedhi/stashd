@@ -1,3 +1,4 @@
+![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
 # stashd
 
 A Redis-inspired key-value store server written in Rust, from scratch. Speaks the real RESP (REdis Serialization Protocol) wire format, so standard Redis clients — including `redis-cli` — can connect to it and run commands directly.
